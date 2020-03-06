@@ -53,7 +53,7 @@ namespace Pulse8
         public MemberDto GetMember(int memberId)
         {
             using (var sqlConnection = new SqlConnection(ConnectionString))
-            using (var cmd = new SqlCommand(string.Format(SELECT_MEMBER, memberId), sqlConnection))
+            using (var cmd = new SqlCommand(SELECT_MEMBER, sqlConnection))
             {
                 sqlConnection.Open();
                 cmd.Parameters.AddWithValue("@memberId", memberId);
