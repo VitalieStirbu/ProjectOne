@@ -18,23 +18,27 @@ namespace Pulse8
                 int memberId;
                 string value = Console.ReadLine();
 
-                if(int.TryParse(value, out memberId))
+                if (int.TryParse(value, out memberId))
                 {
                     try
                     {
-                        MemberDto member = dbHandler.GetMember(memberId);
-                      
-                        foreach (var prop in member.GetType().GetProperties())
+                        List<MemberDto> memberCategories = dbHandler.GetMember(memberId);
+
+                        foreach (var item in memberCategories)
                         {
-                            Console.WriteLine($"{prop.Name} = {prop.GetValue(member, null)}");
+                            foreach (var prop in item.GetType().GetProperties())
+                            {
+                                Console.WriteLine($"{prop.Name} = {prop.GetValue(item, null)}");
+                            }
+                            Console.WriteLine(new string('-', 40));
                         }
-                        Console.WriteLine(new string('-', 40));
                     }
-                    catch(Exception ex)
+                    catch (Exception ex)
                     {
                         Console.WriteLine(ex.Message);
                     }
-                } else
+                }
+                else
                 {
                     Console.WriteLine("Invalid id");
                 }

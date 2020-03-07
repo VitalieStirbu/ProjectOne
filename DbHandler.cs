@@ -13,45 +13,62 @@ namespace Pulse8
         private readonly string ConnectionString = ConfigurationManager.ConnectionStrings["Pulse8ConnStr"].ConnectionString;
 
         private const string SELECT_MEMBER = @"
-                                SELECT TOP(1)
-                                   m.MemberID,
-                                   m.FirstName,
-                                   m.LastName,
-                                   d.DiagnosisID,
-                                   d.DiagnosisDescription,
-                                   dc.CategoryDescription,
-                                   dc.CategoryScore,
-                                   CASE
-                                      WHEN
-                                         dc.Diagnosiscategoryid = 1 OR dc.DiagnosisCategoryID IS NULL
-                                      THEN
-                                         1 
-                                      ELSE
-                                         0 
-                                   END
-                                   AS [IsMostSevereCategory] 
-                                FROM
-                                   dbo.Member m 
-                                   INNER JOIN
-                                      dbo.Memberdiagnosis md 
-                                      ON m.Memberid = md.Memberid 
-                                   INNER JOIN
-                                      dbo.Diagnosis d 
-                                      ON md.Diagnosisid = d.Diagnosisid 
-                                   INNER JOIN
-                                      dbo.Diagnosiscategorymap dcm 
-                                      ON d.Diagnosisid = dcm.Diagnosisid 
-                                   INNER JOIN
-                                      dbo.Diagnosiscategory dc 
-                                      ON dcm.Diagnosiscategoryid = dc.Diagnosiscategoryid 
-                                WHERE
-                                   m.MemberID = @memberId
-                                ORDER BY
-                                   d.DiagnosisID
+                        ;WITH MemberCategory_CTE (MemberID, DiagnosisID, DiagnosisDescription, CategoryDescription, CategoryScore) AS 
+                        (
+                           SELECT
+                              md.MemberID,
+                              d.DiagnosisID,
+                              d.DiagnosisDescription,
+                              dc.CategoryDescription,
+                              dc.CategoryScore 
+                           FROM
+                              MemberDiagnosis md 
+                              INNER JOIN
+                                 dbo.Diagnosis d 
+                                 ON md.Diagnosisid = d.Diagnosisid 
+                              INNER JOIN
+                                 dbo.Diagnosiscategorymap dcm 
+                                 ON d.Diagnosisid = dcm.Diagnosisid 
+                              INNER JOIN
+                                 dbo.Diagnosiscategory dc 
+                                 ON dcm.Diagnosiscategoryid = dc.Diagnosiscategoryid 
+                           WHERE
+                              md.MemberID = @memberId 
+                        )
+                        SELECT
+                           m.MemberID,
+                           m.FirstName,
+                           m.LastName,
+                           temp.DiagnosisID,
+                           temp.DiagnosisDescription,
+                           temp.CategoryDescription,
+                           temp.CategoryScore,
+                           CASE
+                              WHEN
+                                 temp.CategoryScore = 
+                                 (
+                                    SELECT
+                                       MIN(MemberCategory_CTE.CategoryScore) 
+                                    FROM
+                                       MemberCategory_CTE 
+                                 )
+                              THEN
+                                 1 
+                              ELSE
+                                 0 
+                           END
+                           AS [IsMostSevereCategory] 
+                        FROM
+                           dbo.Member m 
+                           INNER JOIN
+                              MemberCategory_CTE temp 
+                              ON m.MemberID = temp.MemberID
 ";
 
-        public MemberDto GetMember(int memberId)
+        public List<MemberDto> GetMember(int memberId)
         {
+            var memberCategories = new List<MemberDto>();
+
             using (var sqlConnection = new SqlConnection(ConnectionString))
             using (var cmd = new SqlCommand(SELECT_MEMBER, sqlConnection))
             {
@@ -60,24 +77,25 @@ namespace Pulse8
 
                 using (var reader = cmd.ExecuteReader())
                 {
-                    if (!reader.Read())
-                        throw new Exception("Member not found");
-
-                    var member = new MemberDto
+                    while (reader.Read())
                     {
-                        CategoryDescription = reader["CategoryDescription"].ToString(),
-                        CategoryScore = Convert.ToInt32(reader["CategoryScore"]),
-                        DiagnosisDescription = reader["DiagnosisDescription"].ToString(),
-                        DiagnosisId = Convert.ToInt32(reader["DiagnosisID"]),
-                        FirstName = reader["FirstName"].ToString(),
-                        IsMostSevereCategory = Convert.ToBoolean(reader["IsMostSevereCategory"]),
-                        LastName = reader["LastName"].ToString(),
-                        MemberId = Convert.ToInt32(reader["MemberID"]),
-                    };
-
-                    return member;
+                        memberCategories.Add(new MemberDto
+                        {
+                            CategoryDescription = reader["CategoryDescription"].ToString(),
+                            CategoryScore = Convert.ToInt32(reader["CategoryScore"]),
+                            DiagnosisDescription = reader["DiagnosisDescription"].ToString(),
+                            DiagnosisId = Convert.ToInt32(reader["DiagnosisID"]),
+                            FirstName = reader["FirstName"].ToString(),
+                            IsMostSevereCategory = Convert.ToBoolean(reader["IsMostSevereCategory"]),
+                            LastName = reader["LastName"].ToString(),
+                            MemberId = Convert.ToInt32(reader["MemberID"]),
+                        });
+                    }
+                    if (memberCategories.Count == 0)
+                        throw new Exception("Member not found");
                 }
             }
+            return memberCategories;
         }
     }
 }
